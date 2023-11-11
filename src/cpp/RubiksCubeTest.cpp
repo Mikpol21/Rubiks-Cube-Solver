@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "Util.h"
 #include "RubiksCube.h"
 
 /*
@@ -14,23 +15,23 @@ L2 F0 R3 B1
 TEST(RubiksCube, rotate)
 {
     RubiksCube cube;
-    auto expected = RubiksCube("../test_data/0.txt");
+    auto expected = RubiksCube(SOURCE_DIR "/test_data/0.txt");
     EXPECT_EQ(cube, expected);
 
     cube.rotate(Face::FRONT);
-    expected = RubiksCube("../test_data/F.txt");
+    expected = RubiksCube(SOURCE_DIR "/test_data/F.txt");
     EXPECT_EQ(cube, expected);
 
     cube.rotate(Face::FRONT, true);
-    expected = RubiksCube("../test_data/FFF.txt");
+    expected = RubiksCube(SOURCE_DIR "/test_data/FFF.txt");
     EXPECT_EQ(cube, expected);
 
     cube.rotate(Face::RIGHT);
-    expected = RubiksCube("../test_data/FFFR.txt");
+    expected = RubiksCube(SOURCE_DIR "/test_data/FFFR.txt");
     EXPECT_EQ(cube, expected);
 
     cube.rotate(Face::BOTTOM, true);
     cube.rotate(Face::BOTTOM);
-    expected = RubiksCube("../test_data/FFFRBBB.txt");
+    expected = RubiksCube(SOURCE_DIR "/test_data/FFFRBBB.txt");
     EXPECT_EQ(cube, expected);
 }

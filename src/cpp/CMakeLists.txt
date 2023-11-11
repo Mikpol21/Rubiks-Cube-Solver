@@ -15,9 +15,18 @@ add_executable(
     main main.cpp RubiksCube.cpp
 )
 
-add_compile_options(-Wall -Wextra -Wpedantic -fsanitize=address)
-add_definitions(-DDEBUG_BUILD)
+add_compile_definitions("SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Debug build.")
+    add_compile_options(-Wall -Wextra -Wpedantic -fsanitize=address)
+    add_definitions(-DDEBUG_BUILD)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+    message(STATUS "Release build.")
+    add_compile_options(-Wall -Wextra -Wpedantic -O3)
+endif()
+
+message(STATUS "CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
 
 target_link_libraries(
     rubiks_cube_test
