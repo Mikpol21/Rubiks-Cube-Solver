@@ -6,6 +6,8 @@ enable_testing()
 find_package(GTest REQUIRED)
 include_directories(${GTEST_INCLUDE_DIR})
 find_package(Threads REQUIRED)
+find_package(pybind11 REQUIRED)
+
 
 add_executable(
     rubiks_cube_test RubiksCubeTest.cpp RubiksCube.cpp
@@ -15,15 +17,19 @@ add_executable(
     main main.cpp RubiksCube.cpp
 )
 
+pybind11_add_module(rubiksCubePy RubiksCubePy.cpp RubiksCube.cpp)
+
 add_compile_definitions("SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
+
+add_compile_options(-Wall -Wextra -Wpedantic)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Debug build.")
-    add_compile_options(-Wall -Wextra -Wpedantic -fsanitize=address)
+    add_compile_options(-fsanitize=address)
     add_definitions(-DDEBUG_BUILD)
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Release build.")
-    add_compile_options(-Wall -Wextra -Wpedantic -O3)
+    add_compile_options(-O3)
 endif()
 
 message(STATUS "CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")

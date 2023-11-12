@@ -3,10 +3,12 @@
 #include <optional>
 #include <cassert>
 #include <fstream>
+#include <algorithm>
+#include <sstream>
 
 namespace
 {
-    Face rotations[6][6] = {
+    constexpr Face rotations[6][6] = {
         {FRONT, INVALID, TOP, BOTTOM, RIGHT, LEFT}, // Front
         {INVALID, BACK, BOTTOM, TOP, LEFT, RIGHT},  // Back
         {BOTTOM, TOP, LEFT, INVALID, FRONT, BACK},  // Left
@@ -15,22 +17,31 @@ namespace
         {RIGHT, LEFT, FRONT, BACK, INVALID, BOTTOM} // Bottom
     };
 
-    std::pair<Face, Face> startingFaces[6] = {
-        {TOP, LEFT},  // Front
-        {TOP, RIGHT}, // Back
-        {TOP, BACK},  // Left
-        {TOP, FRONT}, // Right
-        {BACK, LEFT}, // Top
-        {FRONT, LEFT} // Bottom
+    constexpr int hashPosition[6][6] = {
+        {-1, -1, 0, 2, 1, 3},
+        {-1, -1, 2, 0, 3, 1},
+        {0, 2, -1, -1, 4, 5},
+        {2, 0, -1, -1, 5, 4},
+        {1, 3, 4, 5, -1, -1},
+        {3, 1, 5, 4, -1, -1}};
+
+    constexpr std::pair<Face, Face>
+        startingFaces[6] = {
+            {TOP, LEFT},  // Front
+            {TOP, RIGHT}, // Back
+            {TOP, BACK},  // Left
+            {TOP, FRONT}, // Right
+            {BACK, LEFT}, // Top
+            {FRONT, LEFT} // Bottom
     };
 
-    int cubeFormat[9] = {0, 1, 2, 7, 8, 3, 6, 5, 4};
+    constexpr int cubeFormat[9] = {0, 1, 2, 7, 8, 3, 6, 5, 4};
 
     template <unsigned int N>
-    bool isRotated(Cublet<N> cublet, Face face)
+    bool isRotated(const Cublet<N> &cublet, Face face)
     {
         for (int i = 0; i < N; i++)
-            if (cublet.edges[i].face == face)
+            if (cublet.stickers[i].face == face)
                 return true;
         return false;
     }
@@ -85,7 +96,7 @@ namespace
         }
     }
 
-    Matrix<6, 9, Color> fileToCubeMatrix(std::string cubeFilePath)
+    Matrix<6, 9, Color> fileToCubeMatrix(const std::string &cubeFilePath)
     {
         std::ifstream file;
         file.open(cubeFilePath.data());
@@ -113,6 +124,15 @@ namespace
         }
         return std::move(matrix);
     }
+
+    template <unsigned int N>
+    int cubletHash(const Cublet<N> &cublet);
+
+    template <>
+    int cubletHash<3>(const Cublet<3> &cublet)
+    {
+        return cublet.stickers[0].face * 6;
+    }
 }
 
 RubiksCube::RubiksCube()
@@ -125,12 +145,12 @@ RubiksCube::RubiksCube()
                 {
                     corners.push_back(Cublet<3>());
                     Cublet<3> &corner = corners.back();
-                    corner.edges[0].color = (Color)color1;
-                    corner.edges[1].color = (Color)color2;
-                    corner.edges[2].color = (Color)color3;
-                    corner.edges[0].face = (Face)(color1);
-                    corner.edges[1].face = (Face)(color2);
-                    corner.edges[2].face = (Face)(color3);
+                    corner.stickers[0].color = (Color)color1;
+                    corner.stickers[1].color = (Color)color2;
+                    corner.stickers[2].color = (Color)color3;
+                    corner.stickers[0].face = (Face)(color1);
+                    corner.stickers[1].face = (Face)(color2);
+                    corner.stickers[2].face = (Face)(color3);
                 }
     // MiddleCublets
     for (int color1 = 0; color1 < 6; color1++)
@@ -139,10 +159,10 @@ RubiksCube::RubiksCube()
             {
                 middles.push_back(Cublet<2>());
                 Cublet<2> &middle = middles.back();
-                middle.edges[0].color = (Color)color1;
-                middle.edges[1].color = (Color)color2;
-                middle.edges[0].face = (Face)(color1);
-                middle.edges[1].face = (Face)(color2);
+                middle.stickers[0].color = (Color)color1;
+                middle.stickers[1].color = (Color)color2;
+                middle.stickers[0].face = (Face)(color1);
+                middle.stickers[1].face = (Face)(color2);
             }
     assert(corners.size() == 8);
     assert(middles.size() == 12);
@@ -160,22 +180,45 @@ RubiksCube::RubiksCube(const Matrix<6, 9, Color> &matrix) : RubiksCube()
         for (int i = 0; i < 4; i++)
         {
             Cublet<3> &cublet = corners[cubletIndex<3>({Face(face), currentFace, previousFace})];
-            for (auto &edge : cublet.edges)
+            for (auto &sticker : cublet.stickers)
             {
-                if (edge.face == face)
-                    edge.color = matrix[face][2 * i];
+                if (sticker.face == face)
+                    sticker.color = matrix[face][2 * i];
             }
             Cublet<2> &middle = middles[cubletIndex<2>({Face(face), currentFace})];
-            for (auto &edge : middle.edges)
+            for (auto &sticker : middle.stickers)
             {
-                if (edge.face == face)
-                    edge.color = matrix[face][2 * i + 1];
+                if (sticker.face == face)
+                    sticker.color = matrix[face][2 * i + 1];
             }
             previousFace = currentFace;
             currentFace = rotations[face][currentFace];
         }
     }
+    // Mainting the same order with respect to the color of the stickers
+    // for (auto &cublet : corners)
+    //     std::sort(cublet.stickers, cublet.stickers + 3);
+    // for (auto &cublet : middles)
+    //     std::sort(cublet.stickers, cublet.stickers + 2);
+    // std::sort(corners.begin(), corners.end());
+    // std::sort(middles.begin(), middles.end());
 }
+
+bool operator<(const Sticker &lhs, const Sticker &rhs)
+{
+    return lhs.color < rhs.color;
+}
+
+template <unsigned int N>
+bool operator<(const Cublet<N> &lhs, const Cublet<N> &rhs)
+{
+    for (int i = 0; i < N; i++)
+        if (lhs.stickers[i] < rhs.stickers[i])
+            return true;
+    return false;
+}
+
+RubiksCube::RubiksCube(const RubiksCube &cube) : corners(cube.corners), middles(cube.middles) {}
 
 RubiksCube::RubiksCube(std::string cubeFilePath) : RubiksCube(fileToCubeMatrix(cubeFilePath)) {}
 
@@ -186,7 +229,7 @@ void RubiksCube::rotate(Face face, bool twice)
         if (isRotated(cublet, face))
         {
             for (int i = 0; i < 3; i++)
-                cublet.edges[i].face = rotations[face][cublet.edges[i].face];
+                cublet.stickers[i].face = rotations[face][cublet.stickers[i].face];
         }
     }
     for (auto &cublet : middles)
@@ -194,7 +237,7 @@ void RubiksCube::rotate(Face face, bool twice)
         if (isRotated(cublet, face))
         {
             for (int i = 0; i < 2; i++)
-                cublet.edges[i].face = rotations[face][cublet.edges[i].face];
+                cublet.stickers[i].face = rotations[face][cublet.stickers[i].face];
         }
     }
 
@@ -226,7 +269,7 @@ int RubiksCube::cubletIndex(const std::vector<Face> &faces) const
         if (isMatch)
             return i;
     }
-    return -1;
+    __builtin_unreachable();
 }
 
 template <unsigned int N>
@@ -237,8 +280,8 @@ Color RubiksCube::colorOnEdge(const std::vector<Face> &faces) const
         return INVALID_COLOR;
     const auto &cublet = getCublets<N>()[cubletIndex];
     for (int i = 0; i < N; i++)
-        if (cublet.edges[i].face == faces[0])
-            return cublet.edges[i].color;
+        if (cublet.stickers[i].face == faces[0])
+            return cublet.stickers[i].color;
     __builtin_unreachable();
 }
 
@@ -355,8 +398,71 @@ std::ostream &operator<<(std::ostream &os, const RubiksCube &cube)
     return os;
 }
 
+namespace
+{
+
+    constexpr int Cublets3Ids[6][6][6] = {{{-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, 0, 1}, {-1, -1, -1, -1, 2, 3}, {-1, -1, 0, 2, -1, -1}, {-1, -1, 1, 3, -1, -1}}, {{-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, 4, 5}, {-1, -1, -1, -1, 6, 7}, {-1, -1, 4, 6, -1, -1}, {-1, -1, 5, 7, -1, -1}}, {{-1, -1, -1, -1, 0, 1}, {-1, -1, -1, -1, 4, 5}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {0, 4, -1, -1, -1, -1}, {1, 5, -1, -1, -1, -1}}, {{-1, -1, -1, -1, 2, 3}, {-1, -1, -1, -1, 6, 7}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {2, 6, -1, -1, -1, -1}, {3, 7, -1, -1, -1, -1}}, {{-1, -1, 0, 2, -1, -1}, {-1, -1, 4, 6, -1, -1}, {0, 4, -1, -1, -1, -1}, {2, 6, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}}, {{-1, -1, 1, 3, -1, -1}, {-1, -1, 5, 7, -1, -1}, {1, 5, -1, -1, -1, -1}, {3, 7, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}}};
+
+    constexpr int Cublets2Ids[6][6] = {{-1, -1, 0, 1, 2, 3}, {-1, -1, 4, 5, 6, 7}, {0, 4, -1, -1, 8, 9}, {1, 5, -1, -1, 10, 11}, {2, 6, 8, 10, -1, -1}, {3, 7, 9, 11, -1, -1}};
+
+    constexpr int Faces3Ids[6][6][6] = {{{-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, 0, 1}, {-1, -1, -1, -1, 2, 3}, {-1, -1, 0, 2, -1, -1}, {-1, -1, 1, 3, -1, -1}}, {{-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, 4, 5}, {-1, -1, -1, -1, 6, 7}, {-1, -1, 4, 6, -1, -1}, {-1, -1, 5, 7, -1, -1}}, {{-1, -1, -1, -1, 8, 9}, {-1, -1, -1, -1, 10, 11}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {8, 10, -1, -1, -1, -1}, {9, 11, -1, -1, -1, -1}}, {{-1, -1, -1, -1, 12, 13}, {-1, -1, -1, -1, 14, 15}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {12, 14, -1, -1, -1, -1}, {13, 15, -1, -1, -1, -1}}, {{-1, -1, 16, 17, -1, -1}, {-1, -1, 18, 19, -1, -1}, {16, 18, -1, -1, -1, -1}, {17, 19, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}}, {{-1, -1, 20, 21, -1, -1}, {-1, -1, 22, 23, -1, -1}, {20, 22, -1, -1, -1, -1}, {21, 23, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1, -1}}};
+
+    constexpr int Faces2Ids[6][6] = {{-1, -1, 0, 1, 2, 3}, {-1, -1, 4, 5, 6, 7}, {8, 9, -1, -1, 10, 11}, {12, 13, -1, -1, 14, 15}, {16, 17, 18, 19, -1, -1}, {20, 21, 22, 23, -1, -1}};
+}
+
 Matrix<20, 24, bool> RubiksCube::toMatrix() const
 {
     Matrix<20, 24, bool> matrix;
+    for (const auto &cublet : corners)
+        matrix[Cublets3Ids[cublet.stickers[0].color][cublet.stickers[1].color][cublet.stickers[2].color]]
+              [Faces3Ids[cublet.stickers[0].face][cublet.stickers[1].face][cublet.stickers[2].face]] = true;
+    for (const auto &cublet : middles)
+        matrix[Cublets2Ids[cublet.stickers[0].color][cublet.stickers[1].color] + corners.size()]
+              [Faces2Ids[cublet.stickers[0].face][cublet.stickers[1].face]] = true;
     return std::move(matrix);
+}
+
+RubiksCube RubiksCube::scrambleCube(RubiksCube &cube, int numMoves, int seed)
+{
+    srand(seed);
+    for (int i = 0; i < numMoves; i++)
+        cube.rotate(static_cast<Face>(rand() % 6), rand() % 2);
+    return cube;
+}
+
+RubiksCube RubiksCube::scramble(int numMoves, int seed)
+{
+    return RubiksCube::scrambleCube(*this, numMoves, seed);
+}
+
+std::vector<RubiksCube> RubiksCube::scrambleCubeWithTrace(RubiksCube &cube, int numMoves, int seed)
+{
+    std::vector<RubiksCube> cubes;
+
+    cubes.push_back(cube);
+    srand(seed);
+    for (int i = 0; i < numMoves; i++)
+    {
+        cube.rotate(static_cast<Face>(rand() % 6), rand() % 2);
+        cubes.push_back(cube);
+    }
+    return std::move(cubes);
+}
+
+std::vector<RubiksCube> RubiksCube::scrambleWithTrace(int numMoves, int seed)
+{
+    return RubiksCube::scrambleCubeWithTrace(*this, numMoves, seed);
+}
+
+std::string RubiksCube::toString() const
+{
+    std::ostringstream ss;
+    ss << *this;
+    std::string str = ss.str();
+    return std::move(str);
+}
+
+void printCube(const RubiksCube &cube)
+{
+    std::cout << cube << std::endl;
 }

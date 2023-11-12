@@ -34,17 +34,22 @@ std::ostream &operator<<(std::ostream &os, const Face &face);
 template <unsigned int N, unsigned int M, typename T>
 using Matrix = std::array<std::array<T, M>, N>;
 
-struct Edge
+struct Sticker
 {
     Color color;
     Face face;
 };
 
+bool operator<(const Sticker &lhs, const Sticker &rhs);
+
 template <unsigned int N>
 struct Cublet
 {
-    Edge edges[N];
+    Sticker stickers[N];
 };
+
+template <unsigned int N>
+bool operator<(const Cublet<N> &lhs, const Cublet<N> &rhs);
 
 class RubiksCube
 {
@@ -61,6 +66,8 @@ class RubiksCube
 
 public:
     RubiksCube();
+
+    RubiksCube(const RubiksCube &cube);
 
     RubiksCube(const Matrix<6, 9, Color> &matrix);
 
@@ -81,5 +88,14 @@ public:
     */
     Matrix<6, 9, Color> toColorMatrix() const;
 
+    RubiksCube scramble(int numMoves = 20, int seed = 0);
+    static RubiksCube scrambleCube(RubiksCube &cube, int numMoves = 20, int seed = 0);
+
+    std::vector<RubiksCube> scrambleWithTrace(int numMoves = 20, int seed = 0);
+    static std::vector<RubiksCube> scrambleCubeWithTrace(RubiksCube &cube, int numMoves = 20, int seed = 0);
     friend std::ostream &operator<<(std::ostream &os, const RubiksCube &cube);
+
+    std::string toString() const;
 };
+
+void printCube(const RubiksCube &cube);
